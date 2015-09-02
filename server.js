@@ -23,63 +23,103 @@ var io = socketio.listen(server);
 
 router.use(express.static(path.resolve(__dirname, 'client')));
 var messages = [];
-var sockets = [];
+
 
 
 //pub_sub example
-var pub_sub = {
-  events: {},
+var sockets = {
+  users: {},
   add_socket: function (user_id, socket) {
-    this.events[user_id] = this.events[user_id] || [];
-    this.events[user_id].push(socket);
+    this.users[user_id] = this.users[user_id] || [];
+    this.users[user_id].push(socket);
+   console.log(this.users[user_id].length);
   },
   remove_socket: function(user_id, socket) {
-    if (this.events[eventName]) {
-      for (var i = 0; i < this.events[eventName].length; i++) {
-        if (this.events[eventName][i] === fn) {
-          this.events[eventName].splice(i, 1);
+    if (this.users[user_id]) {
+      for (var i = 0; i < this.users[user_id].length; i++) {
+        if (this.users[user_id][i] === socket) {
+          this.users[user_id].splice(i, 1);
+         console.log("remove" + this.users[user_id].length);
           break;
         }
       };
     }
   },
   emit: function (eventName, data) {
-    if (this.events[eventName]) {
-      this.events[eventName].forEach(function(fn) {
+    if (this.users[eventName]) {
+      this.users[eventName].forEach(function(fn) {
         fn(data);
       });
     }
   }
 };
+  
+  redis_client.on("subscribe", function (channel, count) {
+       
+    });
+ 
+    redis_client.on("message", function (channel, message) {
+         console.log(message);
+    });
+ 
 
-
-
-
-
-  redis_client.on('connect', function() {
+    redis_client.on('connect', function() {
       console.log('connected');
-  });
+    });
+
+   redis_client.subscribe("messages");
+
+  
 
   io.on('connection', function (socket) {
-    
-    messages.forEach(function (data) {
-      socket.emit('message', data);
+
+    socket.on('connect_me', function (data) {
+      sockets.add_socket(data.user_id,socket);
     });
 
-    redis_client.sadd('unknown',socket.id , function(err, reply) {
-      console.log(reply); // 3
+    socket.on('release_me', function (data) {
+      sockets.remove_socket(data.user_id,socket);
     });
-    
-    socket.on('connect_me', function (data) {
+
+    socket.on('message', function (data) {
       console.log(data);
     });
 
+  });
 
-    sockets.push(socket);
-    socket.on('disconnect', function () {
-      sockets.splice(sockets.indexOf(socket), 1);
-     // updateRoster();
-    });
+
+  
+
+  // io.on('connection', function (socket) {
+    
+  //   messages.forEach(function (data) {
+  //     socket.emit('message', data);
+  //   });
+
+
+  //   redis_client.sadd('unknown',socket.id , function(err, reply) {
+  //     console.log(reply); // 3
+  //   });
+    
+  //   socket.on('connect_me', function (data) {
+  //     sockets.add_socket(data.user_id,socket);
+  //     console.log(data);
+  //   });
+
+  //   socket.on('release_me', function (data) {
+  //     sockets.remove_socket(data.user_id,socket);
+  //     console.log(data);
+  //   });
+
+    
+
+
+    // sockets.push(socket);
+    // socket.on('disconnect', function () {
+    //   sockets.remove_socket(data.user_id,socket)
+    //   sockets.splice(sockets.indexOf(socket), 1);
+    //  // updateRoster();
+    // });
 
     // socket.on('message', function (msg) {
     //   var text = String(msg || '');
@@ -98,12 +138,12 @@ var pub_sub = {
     //   // });
     // });
 
-    socket.on('identify', function (name) {
-      // socket.set('name', String(name || 'Anonymous'), function (err) {
-      //   updateRoster();
-      // });
-    });
-  });
+  //   socket.on('identify', function (name) {
+  //     // socket.set('name', String(name || 'Anonymous'), function (err) {
+  //     //   updateRoster();
+  //     // });
+  //   });
+  // });
 
 // function updateRoster() {
 //   async.map(
