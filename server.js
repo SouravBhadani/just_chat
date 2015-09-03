@@ -1,75 +1,48 @@
-//
-// # SimpleServer
-//
-// A simple chat server using Socket.IO, Express, and Async.
-//
 var http = require('http');
 var path = require('path');
 var redis = require('redis');
-var redis_client = redis.createClient(); //creates a new client
 var async = require('async');
 var socketio = require('socket.io');
 var express = require('express');
-
-//
-// ## SimpleServer `SimpleServer(obj)`
-//
-// Creates a new instance of SimpleServer with the following options:
-//  * `port` - The HTTP port to listen on. If `process.env.PORT` is set, _it overrides this value_.
-//
 var router = express();
 var server = http.createServer(router);
 var io = socketio.listen(server);
 
 router.use(express.static(path.resolve(__dirname, 'client')));
-var messages = [];
+var redis_client = redis.createClient(); 
 
-
-
-//pub_sub example
 var sockets = {
   users: {},
   add_socket: function (user_id, socket) {
     this.users[user_id] = this.users[user_id] || [];
     this.users[user_id].push(socket);
-   console.log(this.users[user_id].length);
   },
   remove_socket: function(user_id, socket) {
     if (this.users[user_id]) {
       for (var i = 0; i < this.users[user_id].length; i++) {
         if (this.users[user_id][i] === socket) {
           this.users[user_id].splice(i, 1);
-         console.log("remove" + this.users[user_id].length);
           break;
         }
       };
     }
   },
-  emit: function (eventName, data) {
-    if (this.users[eventName]) {
-      this.users[eventName].forEach(function(fn) {
-        fn(data);
+  emit: function (users,notify,data) {
+    if (this.users[users]) {
+        this.users[users].forEach(function(socket) {
+        socket.emit(notify,data);
       });
     }
   }
 };
   
-  redis_client.on("subscribe", function (channel, count) {
-       
-    });
- 
-    redis_client.on("message", function (channel, message) {
-         console.log(message);
-    });
- 
+  redis_client.on("subscribe", function (channel, count) {});
+    
+  redis_client.on("message", function (channel, message) {
+      sockets.emit('open_group','group_message',message);  //  console.log(message);
+  });
 
-    redis_client.on('connect', function() {
-      console.log('connected');
-    });
-
-   redis_client.subscribe("messages");
-
-  
+  redis_client.subscribe("messages");
 
   io.on('connection', function (socket) {
 
@@ -81,8 +54,12 @@ var sockets = {
       sockets.remove_socket(data.user_id,socket);
     });
 
-    socket.on('message', function (data) {
-      console.log(data);
+    socket.on('join_group', function() {
+      sockets.add_socket('open_group',socket);
+    });
+
+    socket.on('leave_group', function() {
+      sockets.remove_socket('open_group',socket);
     });
 
   });
