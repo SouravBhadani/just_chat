@@ -37,25 +37,17 @@ function add_messages_to_redis(message){
   message_string = JSON.stringify(message);
   rc.rpush('messages', message_string, function(err, reply) {
     if (err){
-      retry = retry - 1
-      if (retry >= 0) {
-        add_messages_to_redis(message, retry);
-        console.log("Error :" + err);
-      }
+      console.log("Error :" + err);
     }else{
-      console.log(reply);
+      console.log("Success : " + reply);
     }
   });
 }
 
-function get_all_messages(socket){
+function deliver_all_messages(socket){
   rc.lrange('messages', 0, -1, function(err, reply) {
     if (err){
-      retry = retry - 1
-      if (retry >= 0) {
-        get_all_messages(socket, retry);
-        console.log("Error :" + err);
-      }
+      console.log("Error :" + err);
     }else{
       all_messages = convert_string_to_json_object(reply);
       send_all_old_messages_to_user(socket, all_messages);
@@ -71,11 +63,10 @@ function send_all_old_messages_to_user(socket, messages){
 }
 
 app.use(express.static(path.resolve(__dirname, 'client')));
-var messages = [];
 var sockets = [];
 
 io.on('connection', function (socket) {
-    get_all_messages(socket);
+    deliver_all_messages(socket);
 
     sockets.push(socket);
 
@@ -98,7 +89,6 @@ io.on('connection', function (socket) {
 
         broadcast('message', data);
         add_messages_to_redis(data);
-        messages.push(data);
       });
     });
 
