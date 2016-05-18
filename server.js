@@ -9,6 +9,8 @@ var path = require('path');
 var async = require('async');
 var socketio = require('socket.io');
 var express = require('express');
+var redis = require('redis');
+
 
 //
 // ## SimpleServer `SimpleServer(obj)`
@@ -16,18 +18,64 @@ var express = require('express');
 // Creates a new instance of SimpleServer with the following options:
 //  * `port` - The HTTP port to listen on. If `process.env.PORT` is set, _it overrides this value_.
 //
-var router = express();
-var server = http.createServer(router);
+var app = express();
+var server = http.createServer(app);
 var io = socketio.listen(server);
+var rc = redis.createClient();
 
-router.use(express.static(path.resolve(__dirname, 'client')));
+function convert_string_to_json_object(records){
+  json_object = [];
+
+  records.forEach(function (record) {
+    json_object.push(JSON.parse(record));
+  });
+
+  return json_object;
+}
+
+function add_messages_to_redis(message){
+  message_string = JSON.stringify(message);
+  rc.rpush('messages', message_string, function(err, reply) {
+    if (err){
+      retry = retry - 1
+      if (retry >= 0) {
+        add_messages_to_redis(message, retry);
+        console.log("Error :" + err);
+      }
+    }else{
+      console.log(reply);
+    }
+  });
+}
+
+function get_all_messages(socket){
+  rc.lrange('messages', 0, -1, function(err, reply) {
+    if (err){
+      retry = retry - 1
+      if (retry >= 0) {
+        get_all_messages(socket, retry);
+        console.log("Error :" + err);
+      }
+    }else{
+      all_messages = convert_string_to_json_object(reply);
+      send_all_old_messages_to_user(socket, all_messages);
+    }
+  });
+
+}
+
+function send_all_old_messages_to_user(socket, messages){
+  messages.forEach(function (message) {
+    socket.emit('message', message);
+  });
+}
+
+app.use(express.static(path.resolve(__dirname, 'client')));
 var messages = [];
 var sockets = [];
 
 io.on('connection', function (socket) {
-    messages.forEach(function (data) {
-      socket.emit('message', data);
-    });
+    get_all_messages(socket);
 
     sockets.push(socket);
 
@@ -49,6 +97,7 @@ io.on('connection', function (socket) {
         };
 
         broadcast('message', data);
+        add_messages_to_redis(data);
         messages.push(data);
       });
     });
